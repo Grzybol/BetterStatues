@@ -1,0 +1,16 @@
+name: BetterStatues
+version: ${project.version}
+main: org.betterbox.betterStatues.BetterStatues
+api-version: '1.18'
+author: Grzybol
+commands:
+  bs:
+    description: Plugin info
+    usage: /bs
+  bs-create:
+    description: Create player statue
+    usage: /bs create <playerName>
+permissions:
+  bettestatues.create:
+    description: Daje dostęp do komendy /be setrewards.
+    default: op
