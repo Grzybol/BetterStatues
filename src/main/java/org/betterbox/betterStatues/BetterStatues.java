@@ -12,22 +12,41 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.json.simple.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 
 public final class BetterStatues extends JavaPlugin {
     private CommandManager commandManager;
+    String folderPath;
+    PluginLogger pluginLogger;
+    FileManager fileManager;
+    ConfigManager configManager;
 
     @Override
     public void onEnable() {
         // Plugin startup logic
 
-        getCommand("bs").setExecutor(new CommandManager(this,this));
+
+        folderPath =getDataFolder().getAbsolutePath();
+        try{
+            Set<PluginLogger.LogLevel> defaultLogLevels = EnumSet.of(PluginLogger.LogLevel.INFO, PluginLogger.LogLevel.DEBUG, PluginLogger.LogLevel.WARNING, PluginLogger.LogLevel.ERROR);
+            pluginLogger = new PluginLogger(getDataFolder().getAbsolutePath(), defaultLogLevels,this);
+            pluginLogger.log(PluginLogger.LogLevel.DEBUG, "BetterRanks: onEnable: calling ConfigManager");
+        }catch (Exception e){
+            getServer().getLogger().warning("PluginLogger Exception: " + e.getMessage());
+        }
+        configManager = new ConfigManager(this, pluginLogger, folderPath);
+        fileManager = new FileManager(getDataFolder().getAbsolutePath(),this,this);
+        getCommand("bs").setExecutor(new CommandManager(this,this,fileManager));
 
 
     }
@@ -74,7 +93,7 @@ public final class BetterStatues extends JavaPlugin {
             return null;  // Brak URL w odpowiedzi
         }
     }
-    public boolean createPlayerModel(Player player, String playerName){
+    public boolean createPlayerModel(Player player, String statueName, String playerName){
         try {
 
             String uuid = getUserUUID(playerName);
@@ -105,11 +124,38 @@ public final class BetterStatues extends JavaPlugin {
             head.setItemMeta(meta);
             as.setHelmet(head);
 
+            fileManager.saveStatue(statueName,as.getUniqueId(),loc);
+
             player.sendMessage(ChatColor.GREEN + "Statue of " + playerName + " created successfully.");
         } catch (IOException e) {
             player.sendMessage(ChatColor.RED + "Error accessing Mojang's API.");
             return false;
         }
+        return true;
+    }
+    public boolean deleteStatue(Player player, String statueName) {
+        // Najpierw sprawdzamy, czy statuetka istnieje w danych
+        FileManager.StatueData statueData = fileManager.loadStatue(statueName);
+        if (statueData == null) {
+            player.sendMessage(ChatColor.RED + "Statue with the name '" + statueName + "' does not exist.");
+            return false;
+        }
+
+        // Usuwamy statuetkę z gry
+        World world = getServer().getWorld(statueData.getLocation().getWorld().getName());
+        UUID statueUUID = statueData.getUuid();
+
+        // Pobieranie wszystkich armor standów w świecie i usunięcie odpowiedniego
+        for (ArmorStand as : world.getEntitiesByClass(ArmorStand.class)) {
+            if (as.getUniqueId().equals(statueUUID)) {
+                as.remove();
+                break;
+            }
+        }
+
+        // Usuwamy dane statuetki z pliku konfiguracyjnego
+        fileManager.deleteStatue(statueName);
+        player.sendMessage(ChatColor.GREEN + "Statue named '" + statueName + "' has been successfully deleted.");
         return true;
     }
 
